@@ -1,12 +1,15 @@
 // ==UserScript==
 // @name         GitHub PR Repository Star Filter
 // @namespace    https://github.com/
-// @version      0.1.0
+// @version      0.2.0
 // @description  Show repository stars on GitHub pull-request search results and optionally hide results below a threshold.
 // @author       Contributors
 // @license      MIT
 // @match        https://github.com/search*
 // @grant        GM_xmlhttpRequest
+// @grant        GM_getValue
+// @grant        GM_setValue
+// @grant        GM_deleteValue
 // @connect      api.github.com
 // @run-at       document-idle
 // ==/UserScript==
@@ -17,10 +20,10 @@
   const CONFIG = {
     defaultMinStars: 100,
     cacheTtlMs: 24 * 60 * 60 * 1000,
-    githubToken: '', // Optional later: paste a fine-grained PAT here to raise API limits.
   };
 
   const STORAGE_KEY = 'github-pr-filter-settings-v1';
+  const TOKEN_STORAGE_KEY = 'github-pr-filter-token-v1';
   const CACHE_KEY_PREFIX = 'github-pr-filter-repo-v1:';
   const PANEL_ID = 'github-pr-filter-panel';
   const BADGE_CLASS = 'github-pr-filter-badge';
@@ -52,6 +55,10 @@
       #${PANEL_ID} { position: fixed; right: 18px; bottom: 18px; z-index: 1000; padding: 10px 12px; border: 1px solid var(--borderColor-default, #d0d7de); border-radius: 8px; background: var(--bgColor-default, #fff); color: var(--fgColor-default, #1f2328); box-shadow: 0 3px 12px rgba(0,0,0,.15); font: 12px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
       #${PANEL_ID} label { display: flex; align-items: center; gap: 6px; margin: 4px 0; }
       #${PANEL_ID} input[type="number"] { width: 76px; padding: 3px 5px; border: 1px solid var(--borderColor-default, #d0d7de); border-radius: 6px; background: var(--bgColor-default, #fff); color: inherit; }
+      #${PANEL_ID} input[type="password"] { width: 150px; padding: 3px 5px; border: 1px solid var(--borderColor-default, #d0d7de); border-radius: 6px; background: var(--bgColor-default, #fff); color: inherit; }
+      #${PANEL_ID} .github-pr-filter-token-row { display: flex; gap: 6px; margin-top: 7px; }
+      #${PANEL_ID} button { padding: 3px 7px; border: 1px solid var(--borderColor-default, #d0d7de); border-radius: 6px; background: var(--button-default-bgColor-rest, #f6f8fa); color: inherit; cursor: pointer; }
+      #${PANEL_ID} .github-pr-filter-token-status { margin-top: 5px; color: var(--fgColor-muted, #656d76); }
       .${BADGE_CLASS} { display: inline-flex; align-items: center; margin-left: 8px; padding: 1px 6px; border: 1px solid var(--borderColor-default, #d0d7de); border-radius: 999px; color: var(--fgColor-muted, #656d76); font-size: 12px; font-weight: 500; vertical-align: middle; white-space: nowrap; }
       .${BADGE_CLASS}[data-state="ok"] { color: var(--fgColor-success, #1a7f37); border-color: var(--borderColor-success-muted, #4ac26b); }
       .${BADGE_CLASS}[data-state="low"] { color: var(--fgColor-attention, #9a6700); border-color: var(--borderColor-attention-muted, #d4a72c); }
@@ -69,9 +76,15 @@
       <strong>PR star filter</strong>
       <label>Min stars <input type="number" min="0" step="1" value="${settings.minStars}"></label>
       <label><input type="checkbox" ${settings.onlyQualified ? 'checked' : ''}> Only qualified PRs</label>
+      <label>GitHub token <input type="password" autocomplete="off" placeholder="${GM_getValue(TOKEN_STORAGE_KEY, '') ? 'Token saved' : 'github_pat_…'}"></label>
+      <div class="github-pr-filter-token-row"><button type="button" data-action="save-token">Save token</button><button type="button" data-action="clear-token">Clear</button></div>
+      <div class="github-pr-filter-token-status">${GM_getValue(TOKEN_STORAGE_KEY, '') ? 'Authenticated token is stored by Tampermonkey.' : 'Using unauthenticated GitHub API.'}</div>
     `;
     const minInput = panel.querySelector('input[type="number"]');
     const toggle = panel.querySelector('input[type="checkbox"]');
+    const tokenInput = panel.querySelector('input[type="password"]');
+    const saveTokenButton = panel.querySelector('[data-action="save-token"]');
+    const clearTokenButton = panel.querySelector('[data-action="clear-token"]');
     minInput.addEventListener('change', () => {
       settings.minStars = Math.max(0, Number.parseInt(minInput.value, 10) || 0);
       minInput.value = settings.minStars;
@@ -82,6 +95,20 @@
       settings.onlyQualified = toggle.checked;
       saveSettings();
       updateAllResults();
+    });
+    saveTokenButton.addEventListener('click', () => {
+      const token = tokenInput.value.trim();
+      if (!token) {
+        tokenInput.focus();
+        tokenInput.placeholder = 'Enter a token first';
+        return;
+      }
+      GM_setValue(TOKEN_STORAGE_KEY, token);
+      location.reload();
+    });
+    clearTokenButton.addEventListener('click', () => {
+      GM_deleteValue(TOKEN_STORAGE_KEY);
+      location.reload();
     });
     document.body.appendChild(panel);
   }
@@ -127,7 +154,8 @@
 
     const request = new Promise((resolve, reject) => {
       const headers = { Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' };
-      if (CONFIG.githubToken) headers.Authorization = `Bearer ${CONFIG.githubToken}`;
+      const githubToken = GM_getValue(TOKEN_STORAGE_KEY, '');
+      if (githubToken) headers.Authorization = `Bearer ${githubToken}`;
       GM_xmlhttpRequest({
         method: 'GET',
         url: `https://api.github.com/repos/${repo}`,

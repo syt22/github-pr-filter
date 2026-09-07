@@ -6,7 +6,7 @@
 
 这是一个用于 GitHub 全局 Issues/Pull Requests 搜索结果页的轻量 Tampermonkey 用户脚本。它会显示每条 Pull Request 所属仓库的 star 数，并可根据用户设置的最低 star 数隐藏不符合条件的结果。
 
-### v0.1 功能
+### v0.2 功能
 
 - 自动识别 GitHub 全局搜索结果中的 Pull Request 链接。
 - 通过 GitHub REST API 获取仓库元数据。
@@ -16,6 +16,7 @@
 - 每个仓库在一次页面会话中只请求一次，并将成功结果缓存到浏览器存储中 24 小时。
 - 使用 `MutationObserver` 自动处理动态页面更新、搜索条件变化和翻页。
 - 明确显示 API 限流、仓库不存在或为私有、请求超时等错误状态。
+- 可在右下角面板保存或清除 GitHub Token；Token 由 Tampermonkey 独立存储，不写入脚本源代码或网页的 `localStorage`。
 
 ### 安装
 
@@ -44,7 +45,9 @@
 
 脚本无需 Token 即可使用，但 GitHub 对未认证 API 请求的速率限制较低。
 
-代码已经为 Token 预留了配置位置：可以修改脚本顶部附近的 `CONFIG.githubToken`。请勿将个人 Token 提交到公开仓库。后续版本可以增加更安全的 Tampermonkey 设置界面。
+在右下角面板的 **GitHub token** 输入框中粘贴 Token，然后点击 **Save token**。Token 由 Tampermonkey 独立保存，不会写入脚本源代码；保存后页面会自动刷新并重新请求 star 数。点击 **Clear** 可删除已保存的 Token。
+
+请勿将 Token 粘贴到源代码、提交到仓库或分享给其他人。
 
 ### 当前限制
 
@@ -64,7 +67,7 @@ MIT
 
 A lightweight Tampermonkey userscript for GitHub's global Issues/Pull Requests search results. It displays the star count of each pull request's repository and can hide results below a configurable threshold.
 
-### Features (v0.1)
+### Features (v0.2)
 
 - Detects pull-request links on GitHub global search pages.
 - Fetches repository metadata from the GitHub REST API.
@@ -74,6 +77,7 @@ A lightweight Tampermonkey userscript for GitHub's global Issues/Pull Requests s
 - Requests each repository only once per page session and caches successful responses in browser storage for 24 hours.
 - Uses `MutationObserver` to handle dynamic page updates, search changes, and pagination.
 - Shows clear messages for rate limits, missing/private repositories, timeouts, and other API errors.
+- Saves or clears a GitHub token from the bottom-right panel using Tampermonkey storage, without placing it in the userscript source or page `localStorage`.
 
 ### Installation
 
@@ -102,7 +106,9 @@ The threshold and filter setting persist in browser storage. Successfully retrie
 
 No token is required, but unauthenticated GitHub API requests have a relatively low rate limit.
 
-The code includes a placeholder for an optional token: edit `CONFIG.githubToken` near the top of the userscript. Do not commit a personal token to a public repository. A later version can add a safer Tampermonkey settings flow.
+Paste the token into **GitHub token** in the bottom-right panel and select **Save token**. Tampermonkey stores it separately from the userscript source. The page reloads automatically so failed star requests can run again. Select **Clear** to delete the saved token.
+
+Do not paste the token into source code, commit it to a repository, or share it with anyone.
 
 ### Current Limitations
 
