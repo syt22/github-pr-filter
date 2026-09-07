@@ -20,9 +20,12 @@
 ### 安装
 
 1. 安装 [Tampermonkey](https://www.tampermonkey.net/) 浏览器扩展。
-2. 打开 Tampermonkey 管理面板，选择 **添加新脚本**（Create a new script）。
-3. 删除默认模板，将 `github-pr-filter.user.js` 的全部内容粘贴进去。
-4. 保存脚本，并确认脚本处于启用状态。
+2. 在 Chrome 地址栏打开 `chrome://extensions/`，找到 Tampermonkey 并点击 **详细信息**，然后开启 **允许用户脚本**（Allow User Scripts）。如果没有看到此选项，请先打开扩展程序页面右上角的 **开发者模式**。
+3. 在 Tampermonkey 的扩展详情页，将 **网站访问权限** 设置为 **在所有网站上**；也可以仅允许 `github.com`，但必须确保 Tampermonkey 有权在 GitHub 页面运行。
+4. 打开 Tampermonkey 管理面板，选择 **添加新脚本**（Create a new script）。
+5. 删除默认模板，将 `github-pr-filter.user.js` 的全部内容粘贴进去。
+6. 保存脚本，并确认脚本处于启用状态。
+7. 打开或刷新 GitHub 搜索页。如果脚本仍未出现，请点击浏览器工具栏中的 Tampermonkey 图标，确认当前页面的运行脚本列表中包含 **GitHub PR Repository Star Filter**。
 
 如果本项目之后发布到 GitHub，也可以打开 `.user.js` 文件的 Raw 页面，Tampermonkey 通常会自动弹出安装界面。
 
@@ -75,9 +78,12 @@ A lightweight Tampermonkey userscript for GitHub's global Issues/Pull Requests s
 ### Installation
 
 1. Install the [Tampermonkey](https://www.tampermonkey.net/) browser extension.
-2. Open the Tampermonkey dashboard and choose **Create a new script**.
-3. Delete the default template and paste in the complete contents of `github-pr-filter.user.js`.
-4. Save the script and make sure it is enabled.
+2. Open `chrome://extensions/` in Chrome, find Tampermonkey, select **Details**, and enable **Allow User Scripts**. If this option is not visible, first enable **Developer mode** in the top-right corner of the Extensions page.
+3. On Tampermonkey's extension details page, set **Site access** to **On all sites**. You may instead allow only `github.com`, but Tampermonkey must have permission to run on GitHub pages.
+4. Open the Tampermonkey dashboard and choose **Create a new script**.
+5. Delete the default template and paste in the complete contents of `github-pr-filter.user.js`.
+6. Save the script and make sure it is enabled.
+7. Open or refresh the GitHub search page. If the interface still does not appear, click the Tampermonkey toolbar icon and confirm that **GitHub PR Repository Star Filter** is listed as running on the current page.
 
 If this project is published on GitHub later, open the Raw view of the `.user.js` file and Tampermonkey should offer to install it directly.
 
