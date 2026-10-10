@@ -6,6 +6,7 @@
 // @author       Contributors
 // @license      MIT
 // @match        https://github.com/search*
+// @match        https://github.com/*/*/pull/*
 // @grant        GM_xmlhttpRequest
 // @grant        GM_getValue
 // @grant        GM_setValue
@@ -25,10 +26,14 @@
   const STORAGE_KEY = 'github-pr-filter-settings-v1';
   const TOKEN_STORAGE_KEY = 'github-pr-filter-token-v1';
   const CACHE_KEY_PREFIX = 'github-pr-filter-repo-v1:';
+  const VISITED_KEY = 'github-pr-filter-visited-prs-v1';
+  const VISITED_SETTINGS_KEY = 'github-pr-filter-visited-settings-v1';
   const PANEL_ID = 'github-pr-filter-panel';
   const BADGE_CLASS = 'github-pr-filter-badge';
+  const VISITED_BADGE_CLASS = 'github-pr-filter-visited-badge';
   const PROCESSED_ATTR = 'data-github-pr-filter-repo';
   const HIDDEN_CLASS = 'github-pr-filter-hidden';
+  const VISITED_HIDDEN_CLASS = 'github-pr-filter-visited-hidden';
   const memoryCache = new Map();
   const pendingRequests = new Map();
   let scanTimer;
@@ -64,6 +69,9 @@
       .${BADGE_CLASS}[data-state="low"] { color: var(--fgColor-attention, #9a6700); border-color: var(--borderColor-attention-muted, #d4a72c); }
       .${BADGE_CLASS}[data-state="error"] { color: var(--fgColor-danger, #d1242f); border-color: var(--borderColor-danger-muted, #ff8182); }
       .${HIDDEN_CLASS} { display: none !important; }
+      .${VISITED_HIDDEN_CLASS} { display: none !important; }
+      .${VISITED_BADGE_CLASS} { display: inline-flex; align-items: center; margin-left: 6px; padding: 1px 6px; border: 1px solid #8250df; border-radius: 999px; color: #8250df; font-size: 12px; font-weight: 600; vertical-align: middle; white-space: nowrap; }
+      #${PANEL_ID} .github-pr-filter-visited-count { margin-left: 4px; color: var(--fgColor-muted, #656d76); }
     `;
     document.head.appendChild(style);
   }
@@ -80,6 +88,10 @@
       <div class="github-pr-filter-token-row"><button type="button" data-action="save-token">Save token</button><button type="button" data-action="clear-token">Clear</button></div>
       <div class="github-pr-filter-token-status">${GM_getValue(TOKEN_STORAGE_KEY, '') ? 'Authenticated token is stored by Tampermonkey.' : 'Using unauthenticated GitHub API.'}</div>
     `;
+    panel.insertAdjacentHTML('beforeend', `
+      <label><input type="checkbox" data-action="hide-visited" ${loadVisitedSettings().hideVisited ? 'checked' : ''}> Hide visited PRs <span class="github-pr-filter-visited-count"></span></label>
+      <button type="button" data-action="clear-visited">Clear visited history</button>
+    `);
     const minInput = panel.querySelector('input[type="number"]');
     const toggle = panel.querySelector('input[type="checkbox"]');
     const tokenInput = panel.querySelector('input[type="password"]');
@@ -95,6 +107,15 @@
       settings.onlyQualified = toggle.checked;
       saveSettings();
       updateAllResults();
+    });
+    panel.querySelector('[data-action="hide-visited"]').addEventListener('change', (event) => {
+      saveVisitedSettings({ hideVisited: event.currentTarget.checked });
+      updateAllVisitedResults();
+    });
+    panel.querySelector('[data-action="clear-visited"]').addEventListener('click', () => {
+      if (!window.confirm('Clear all locally recorded visited PRs?')) return;
+      GM_deleteValue(VISITED_KEY);
+      updateAllVisitedResults();
     });
     saveTokenButton.addEventListener('click', () => {
       const token = tokenInput.value.trim();
@@ -122,6 +143,72 @@
     } catch (_) {
       return null;
     }
+  }
+
+  function normalizePullUrl(href) {
+    try {
+      const url = new URL(href, location.origin);
+      if (url.origin !== location.origin) return null;
+      const match = url.pathname.match(/^\/([^/]+)\/([^/]+)\/pull\/(\d+)(?:\/|$)/i);
+      return match ? `https://github.com/${match[1].toLowerCase()}/${match[2].toLowerCase()}/pull/${match[3]}` : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  function loadVisited() {
+    const value = GM_getValue(VISITED_KEY, {});
+    return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+  }
+
+  function loadVisitedSettings() {
+    const value = GM_getValue(VISITED_SETTINGS_KEY, {});
+    return { hideVisited: Boolean(value && value.hideVisited) };
+  }
+
+  function saveVisitedSettings(value) {
+    GM_setValue(VISITED_SETTINGS_KEY, value);
+  }
+
+  function markCurrentPullVisited() {
+    const url = normalizePullUrl(location.href);
+    if (!url) return;
+    const visited = loadVisited();
+    if (visited[url]) return;
+    visited[url] = new Date().toISOString();
+    GM_setValue(VISITED_KEY, visited);
+  }
+
+  function updateVisitedCounter() {
+    const counter = document.querySelector(`#${PANEL_ID} .github-pr-filter-visited-count`);
+    if (counter) counter.textContent = `(${Object.keys(loadVisited()).length} recorded)`;
+  }
+
+  function updateAllVisitedResults() {
+    if (!location.pathname.startsWith('/search')) return;
+    const visited = loadVisited();
+    const hideVisited = loadVisitedSettings().hideVisited;
+    document.querySelectorAll('a[href*="/pull/"]').forEach((link) => {
+      const url = normalizePullUrl(link.href);
+      if (!url) return;
+      const row = findResultContainer(link);
+      if (!row) return;
+      const hasVisited = Boolean(visited[url]);
+      row.classList.toggle(VISITED_HIDDEN_CLASS, hideVisited && hasVisited);
+      const badge = link.parentElement?.querySelector(`:scope > .${VISITED_BADGE_CLASS}`);
+      if (hasVisited && !badge) {
+        const newBadge = document.createElement('span');
+        newBadge.className = VISITED_BADGE_CLASS;
+        newBadge.textContent = 'Visited';
+        newBadge.title = `Opened: ${new Date(visited[url]).toLocaleString()}`;
+        link.insertAdjacentElement('afterend', newBadge);
+      } else if (!hasVisited && badge) {
+        badge.remove();
+      } else if (hasVisited && badge) {
+        badge.title = `Opened: ${new Date(visited[url]).toLocaleString()}`;
+      }
+    });
+    updateVisitedCounter();
   }
 
   function findResultContainer(link) {
@@ -216,13 +303,30 @@
   }
 
   function scan() {
+    markCurrentPullVisited();
     if (!location.pathname.startsWith('/search')) return;
     createPanel();
     const links = document.querySelectorAll('a[href*="/pull/"]');
     links.forEach((link) => {
+      const result = findResultContainer(link);
+      const pullUrl = normalizePullUrl(link.href);
+      const visited = loadVisited();
+      if (result && pullUrl) {
+        const hasVisited = Boolean(visited[pullUrl]);
+        result.classList.toggle(VISITED_HIDDEN_CLASS, loadVisitedSettings().hideVisited && hasVisited);
+        const visitedBadge = link.parentElement?.querySelector(`:scope > .${VISITED_BADGE_CLASS}`);
+        if (hasVisited && !visitedBadge) {
+          const badge = document.createElement('span');
+          badge.className = VISITED_BADGE_CLASS;
+          badge.textContent = 'Visited';
+          badge.title = `Opened: ${new Date(visited[pullUrl]).toLocaleString()}`;
+          link.insertAdjacentElement('afterend', badge);
+        } else if (!hasVisited && visitedBadge) {
+          visitedBadge.remove();
+        }
+      }
       const repo = parseRepoFromUrl(link.href);
       if (!repo) return;
-      const result = findResultContainer(link);
       if (!result || result.hasAttribute(PROCESSED_ATTR)) return;
       result.setAttribute(PROCESSED_ATTR, repo);
 
@@ -238,6 +342,7 @@
         (error) => renderBadge(badge, null, error),
       );
     });
+    updateVisitedCounter();
   }
 
   function scheduleScan() {
@@ -246,7 +351,17 @@
   }
 
   addStyles();
+  markCurrentPullVisited();
   scan();
   new MutationObserver(scheduleScan).observe(document.body, { childList: true, subtree: true });
   window.addEventListener('popstate', scheduleScan);
+  window.addEventListener('turbo:load', scheduleScan);
+  for (const method of ['pushState', 'replaceState']) {
+    const original = history[method];
+    history[method] = function (...args) {
+      const result = original.apply(this, args);
+      scheduleScan();
+      return result;
+    };
+  }
 })();

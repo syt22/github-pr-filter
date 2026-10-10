@@ -1,5 +1,11 @@
 # GitHub PR Repository Star Filter
 
+## Visited PR tracking (v0.3)
+
+The userscript also records pull requests opened in GitHub and marks them in later global search results. The visit history is stored through Tampermonkey's local storage, separately from the page `localStorage`, and does not use the GitHub API. In the search-page panel, enable **Hide visited PRs** to hide previously opened results, or use **Clear visited history** to remove the local history.
+
+To record visits, the userscript must be enabled on both `github.com/search` and GitHub pull-request detail pages. The updated metadata includes the PR page match. Visit records are local to the browser profile and are not synchronized to other computers.
+
 [中文](#中文说明) | [English](#english)
 
 ## 中文说明
